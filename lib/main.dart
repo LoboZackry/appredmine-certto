@@ -6,7 +6,10 @@ import 'package:appredmine_certto/views/home_screen.dart';
 void main() async {
   final session = SessionHandler();
   await session.initSession();
-  runApp(MaterialApp(
-    home: await session.checkLogin() ? const HomeScreen() : const LoginScreen(),
-  ));
+  runApp(
+    MaterialApp(
+      restorationScopeId: "main",
+      home: await session.checkLogin() ? const HomeScreen() : const LoginScreen()
+    )
+  );
 }

@@ -1,39 +1,66 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:appredmine_certto/handlers/backend.dart';
 import 'package:appredmine_certto/views/home_screen.dart';
 import 'package:appredmine_certto/views/devolution/new_dvl_item.dart';
 
 class DevolutionScreen extends StatefulWidget {
-  final int id;
-  final String apiKey;
-  final String author;
-
-  const DevolutionScreen({Key? key, required this.id, required this.apiKey, required this.author}) : super(key: key);
+  const DevolutionScreen({Key? key}) : super(key: key);
 
   @override
   State<DevolutionScreen> createState() => _DevolutionScreenState();
 }
 
-class _DevolutionScreenState extends State<DevolutionScreen> {
+class _DevolutionScreenState extends State<DevolutionScreen> with RestorationMixin {
+  @override
+  String? get restorationId => "devolution";
+
+  @pragma('vm:entry-point')
+  static Route<Map> buildDvlItemRoute(BuildContext context, Object? arguments) {
+    return MaterialPageRoute<Map>(
+      settings: RouteSettings(arguments: arguments),
+      builder: (BuildContext context) => const NemDvlItem(),
+    );
+  }
+
   bool isLoading = false;
-  List<Map> items = [];
+  List items = [];
+  late RestorableRouteFuture<Map> newDvlItemRoute;
+  final backupItems = RestorableString("");
 
   final backend = BackendHandler();
 
   @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(backupItems, "items_list");
+    registerForRestoration(newDvlItemRoute, "newdvlitem_route");
+  }
+
+  @override
   void initState() {
     super.initState();
+    newDvlItemRoute = RestorableRouteFuture<Map>(
+      onPresent: (NavigatorState navigator, Object? arguments) {
+        return Navigator.restorablePush(context, buildDvlItemRoute, arguments: arguments);
+      }, onComplete: (Map result) {
+        setState(() {
+          items.add(result);
+          backupItems.value = jsonEncode(items);
+        });
+      }
+    );
   }
 
   @override
   void dispose() {
+    newDvlItemRoute.dispose();
+    backupItems.dispose();
     if (items.isNotEmpty) {
       for (final item in items) {
         File(item["image"]["path"]).delete();
       }
     }
-
     super.dispose();
   }
 
@@ -41,7 +68,7 @@ class _DevolutionScreenState extends State<DevolutionScreen> {
     if (items.isEmpty) {
       return const Center(
         child: Text(
-          'Não há itens na lista',
+          'Não há itens na lista.',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 18.0
@@ -121,6 +148,7 @@ class _DevolutionScreenState extends State<DevolutionScreen> {
                         File(items[index]["image"]["path"]).delete();
                         setState(() {
                           items.removeAt(index);
+                          backupItems.value = jsonEncode(items);
                         });
                       }
                     },
@@ -140,6 +168,10 @@ class _DevolutionScreenState extends State<DevolutionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final Map args = ModalRoute.of(context)?.settings.arguments as Map<Object?, Object?>;
+    if (backupItems.value != "") {
+      items = jsonDecode(backupItems.value);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Devolução ao estoque'),
@@ -158,14 +190,7 @@ class _DevolutionScreenState extends State<DevolutionScreen> {
             child: InkWell(
               onTap: () async {
                 if (isLoading != true) {
-                  Map result = await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => NemDvlItem(id: widget.id, apiKey: widget.apiKey)),
-                  );
-                  if (result.isNotEmpty) {
-                    setState(() {
-                      items.add(result);
-                    });
-                  }
+                  newDvlItemRoute.present({"id":args["id"],"apiKey":args["apiKey"]});
                 }
               },
               child: Container(
@@ -191,7 +216,7 @@ class _DevolutionScreenState extends State<DevolutionScreen> {
                   });
 
                   if(items.isNotEmpty) {
-                    Map devolution = await backend.newDevolution(widget.id, widget.apiKey, widget.author, items);
+                    Map devolution = await backend.newDevolution(args["id"], args["apiKey"], args["author"], items);
                     if (context.mounted) {
                       if (devolution["error"] == false) {
                         showDialog(

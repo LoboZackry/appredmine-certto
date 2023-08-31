@@ -8,6 +8,22 @@ import 'package:appredmine_certto/views/devolution/devolution.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  @pragma('vm:entry-point')
+  static Route _buildDvlRoute(BuildContext context, Object? arguments) {
+    return MaterialPageRoute<void>(
+      settings: RouteSettings(arguments: arguments),
+      builder: (BuildContext context) => const DevolutionScreen(),
+    );
+  }
+
+  @pragma('vm:entry-point')
+  static Route _buildIfmRoute(BuildContext context, Object? arguments) {
+    return MaterialPageRoute<void>(
+      settings: RouteSettings(arguments: arguments),
+      builder: (BuildContext context) => const InformDcal(),
+    );
+  }
+
   Widget issuesList(context, int uID, String apiKey, author, List allowedIds) {
     final List checkedIds = [];
     for (final id in allowedIds) {
@@ -36,10 +52,7 @@ class HomeScreen extends StatelessWidget {
           widgets.add(
               InkWell(
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) =>
-                      DevolutionScreen(id: uID, apiKey: apiKey, author: author)),
-                  );
+                  Navigator.restorablePush(context, _buildDvlRoute, arguments: {"id":uID,"apiKey":apiKey,"author":author});
                 },
                 child: Container(
                   margin: const EdgeInsets.all(0),
@@ -94,9 +107,7 @@ class HomeScreen extends StatelessWidget {
           widgets.add(
             InkWell(
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => InformDcal(id: uID, apiKey: apiKey)),
-                );
+                Navigator.restorablePush(context, _buildIfmRoute, arguments: {"id":uID,"apiKey":apiKey});
               },
               child: Container(
                 margin: const EdgeInsets.all(0),

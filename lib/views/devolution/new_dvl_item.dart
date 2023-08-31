@@ -1,29 +1,38 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:appredmine_certto/handlers/backend.dart';
 
 class NemDvlItem extends StatefulWidget {
-  final int id;
-  final String apiKey;
-
-  const NemDvlItem({Key? key, required this.id, required this.apiKey}) : super(key: key);
+  const NemDvlItem({Key? key}) : super(key: key);
 
   @override
   State<NemDvlItem> createState() => _NemDvlItemState();
 }
 
-class _NemDvlItemState extends State<NemDvlItem> {
+class _NemDvlItemState extends State<NemDvlItem> with RestorationMixin {
+  @override
+  String? get restorationId => "new_dvl_item";
+
   bool purgeCache = true;
   bool isUploading = false;
-  Map uploadedImage = {"path":"","token":"", "filename":""};
+  Map uploadedImage = {};
 
   final backend = BackendHandler();
 
-  final descriptionField = TextEditingController();
-  final serialCodeField = TextEditingController();
+  final backupImage = RestorableString("");
+  final descriptionField = RestorableTextEditingController();
+  final serialCodeField = RestorableTextEditingController();
 
   final ImagePicker picker = ImagePicker();
+
+  @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(backupImage, "image_map");
+    registerForRestoration(serialCodeField, "serial_field");
+    registerForRestoration(descriptionField, "description_field");
+  }
 
   @override
   void initState() {
@@ -33,17 +42,78 @@ class _NemDvlItemState extends State<NemDvlItem> {
   @override
   void dispose() {
     if (purgeCache == true) {
-      if (uploadedImage["path"] != "") {
+      if (uploadedImage.isNotEmpty) {
         File(uploadedImage["path"]).delete();
       }
     }
-    descriptionField.dispose();
+    backupImage.dispose();
     serialCodeField.dispose();
+    descriptionField.dispose();
     super.dispose();
   }
 
-  Widget imageDisplay() {
-    if (uploadedImage["path"].isEmpty) {
+  void setImage(String path, token, filename) {
+    uploadedImage["token"] = token;
+    uploadedImage["filename"] = filename;
+    uploadedImage["path"] = path;
+    backupImage.value = jsonEncode(uploadedImage);
+  }
+
+  void checkLostImage(context, int id, String key) async {
+    final LostDataResponse lostData = await picker.retrieveLostData();
+    if (lostData.isEmpty == false) {
+      if (lostData.file!.path.isNotEmpty) {
+        setState(() {
+          isUploading = true;
+        });
+        var upload = await backend.doUpload(id, key, lostData.file!.path, true);
+        if (upload["error"] == false) {
+          setState(() {
+            setImage(lostData.file!.path,upload["upload"]["token"],upload["upload"]["filename"]);
+            if (upload["upload"].containsKey("scan")) {
+              if (descriptionField.value.text.isEmpty) {
+                descriptionField.value.text = upload["upload"]["scan"]["description"];
+              }
+              if (serialCodeField.value.text.isEmpty) {
+                serialCodeField.value.text = upload["upload"]["scan"]["data"];
+              }
+            } else {
+              if (serialCodeField.value.text.isEmpty) {
+                serialCodeField.value.text = "N/A";
+              }
+            }
+            isUploading = false;
+          });
+        } else {
+          setState(() {
+            isUploading = false;
+          });
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text("Ops, ocorreu um erro:"),
+                  content: Text(upload["error_msg"]),
+                  actions: [
+                    TextButton(
+                      child: const Text("OK"),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                    )
+                  ]
+                );
+              }
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Widget imageDisplay(int id, String apiKey) {
+    if (uploadedImage.isEmpty) {
       return const Text(
         "Nenhuma foto anexada.",
         textAlign: TextAlign.center,
@@ -55,7 +125,7 @@ class _NemDvlItemState extends State<NemDvlItem> {
       );
     } else {
       return Stack(
-          children: [
+        children: [
           Image.file(
             File(uploadedImage["path"]),
           ),
@@ -70,9 +140,13 @@ class _NemDvlItemState extends State<NemDvlItem> {
               ),
               onPressed: () => setState(() {
                 if (isUploading != true) {
-                  descriptionField.text = "";
-                  serialCodeField.text = "";
-                  uploadedImage["path"] = "";
+                  if (uploadedImage.isNotEmpty) {
+                    File(uploadedImage["path"]).delete();
+                  }
+                  descriptionField.value.text = "";
+                  serialCodeField.value.text = "";
+                  uploadedImage = {};
+                  backupImage.value = "";
                 }
               }),
             ),
@@ -84,14 +158,22 @@ class _NemDvlItemState extends State<NemDvlItem> {
 
   @override
   Widget build(BuildContext context) {
+    final Map args = ModalRoute.of(context)?.settings.arguments as Map<Object?, Object?>;
+
+    if (backupImage.value != "") {
+      uploadedImage = jsonDecode(backupImage.value);
+    }
+
+    checkLostImage(context, args["id"], args["apiKey"]);
+
     return Stack(
       children: [
         Scaffold(
-            backgroundColor: const Color(0xffffffff),
-            appBar: AppBar(
-              title: const Text("Adicionar item a lista"),
-            ),
-            body: Padding(
+          backgroundColor: const Color(0xffffffff),
+          appBar: AppBar(
+            title: const Text("Adicionar item a lista"),
+          ),
+          body: Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -113,7 +195,7 @@ class _NemDvlItemState extends State<NemDvlItem> {
                   ),
                 ),
                 TextField(
-                  controller: descriptionField,
+                  controller: descriptionField.value,
                   obscureText: false,
                   textAlign: TextAlign.start,
                   maxLines: 1,
@@ -173,7 +255,7 @@ class _NemDvlItemState extends State<NemDvlItem> {
                   ),
                 ),
                 TextField(
-                  controller: serialCodeField,
+                  controller: serialCodeField.value,
                   obscureText: false,
                   textAlign: TextAlign.start,
                   maxLines: 1,
@@ -237,7 +319,7 @@ class _NemDvlItemState extends State<NemDvlItem> {
                 ),
                 Expanded(
                   flex: 1,
-                  child: imageDisplay(),
+                  child: imageDisplay(args["id"],args["apiKey"]),
                 ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -254,22 +336,20 @@ class _NemDvlItemState extends State<NemDvlItem> {
                               setState(() {
                                 isUploading = true;
                               });
-                              var upload = await backend.doUpload(widget.id, widget.apiKey, image.path, true);
+                              var upload = await backend.doUpload(args["id"], args["apiKey"], image.path, true);
                               if (upload["error"] == false) {
-                                uploadedImage["token"] = upload["upload"]["token"];
-                                uploadedImage["filename"] = upload["upload"]["filename"];
                                 setState(() {
-                                  uploadedImage["path"] = image.path;
+                                  setImage(image.path, upload["upload"]["token"], upload["upload"]["filename"]);
                                   if (upload["upload"].containsKey("scan")) {
-                                    if (descriptionField.text.isEmpty) {
-                                      descriptionField.text = upload["upload"]["scan"]["description"];
+                                    if (descriptionField.value.text.isEmpty) {
+                                      descriptionField.value.text = upload["upload"]["scan"]["description"];
                                     }
-                                    if (serialCodeField.text.isEmpty) {
-                                      serialCodeField.text = upload["upload"]["scan"]["data"];
+                                    if (serialCodeField.value.text.isEmpty) {
+                                      serialCodeField.value.text = upload["upload"]["scan"]["data"];
                                     }
                                   } else {
-                                    if (serialCodeField.text.isEmpty) {
-                                      serialCodeField.text = "N/A";
+                                    if (serialCodeField.value.text.isEmpty) {
+                                      serialCodeField.value.text = "N/A";
                                     }
                                   }
                                   isUploading = false;
@@ -334,22 +414,20 @@ class _NemDvlItemState extends State<NemDvlItem> {
                               setState(() {
                                 isUploading = true;
                               });
-                              var upload = await backend.doUpload(widget.id, widget.apiKey, image.path, true);
+                              var upload = await backend.doUpload(args["id"], args["apiKey"], image.path, true);
                               if (upload["error"] == false) {
-                                uploadedImage["token"] = upload["upload"]["token"];
-                                uploadedImage["filename"] = upload["upload"]["filename"];
                                 setState(() {
-                                  uploadedImage["path"] = image.path;
+                                  setImage(image.path, upload["upload"]["token"], upload["upload"]["filename"]);
                                   if (upload["upload"].containsKey("scan")) {
-                                    if (descriptionField.text.isEmpty) {
-                                      descriptionField.text = upload["upload"]["scan"]["description"];
+                                    if (descriptionField.value.text.isEmpty) {
+                                      descriptionField.value.text = upload["upload"]["scan"]["description"];
                                     }
-                                    if (serialCodeField.text.isEmpty) {
-                                      serialCodeField.text = upload["upload"]["scan"]["data"];
+                                    if (serialCodeField.value.text.isEmpty) {
+                                      serialCodeField.value.text = upload["upload"]["scan"]["data"];
                                     }
                                   } else {
-                                    if (serialCodeField.text.isEmpty) {
-                                      serialCodeField.text = "N/A";
+                                    if (serialCodeField.value.text.isEmpty) {
+                                      serialCodeField.value.text = "N/A";
                                     }
                                   }
                                   isUploading = false;
@@ -425,16 +503,16 @@ class _NemDvlItemState extends State<NemDvlItem> {
               if (isUploading != true) {
                 bool error = false;
                 String errorMsg = "";
-                if (uploadedImage["path"].isEmpty) {
+                if (uploadedImage.isEmpty) {
                   error==false?error=true:null;
                   errorMsg += "\n- Necessário anexar foto.";
                 }
-                if (descriptionField.text.isEmpty) {
+                if (descriptionField.value.text.isEmpty) {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo descrição está vazio.";
                 }
-                if (serialCodeField.text.isEmpty) {
-                  serialCodeField.text = "N/A";
+                if (serialCodeField.value.text.isEmpty) {
+                  serialCodeField.value.text = "N/A";
                 }
 
                 if (error == true) {
@@ -457,7 +535,7 @@ class _NemDvlItemState extends State<NemDvlItem> {
                   );
                 } else {
                   purgeCache = false;
-                  Navigator.pop(context, {"image":uploadedImage,"equip":descriptionField.text, "serial":serialCodeField.text});
+                  Navigator.pop(context, {"image":uploadedImage,"equip":descriptionField.value.text, "serial":serialCodeField.value.text});
                 }
               }
             },

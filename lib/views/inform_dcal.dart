@@ -1,33 +1,45 @@
 import 'dart:io';
-import 'package:appredmine_certto/handlers/backend.dart';
-import 'package:appredmine_certto/views/home_screen.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:appredmine_certto/handlers/backend.dart';
+import 'package:appredmine_certto/views/home_screen.dart';
 
 class InformDcal extends StatefulWidget {
-  final int id;
-  final String apiKey;
-
-  const InformDcal({Key? key, required this.id, required this.apiKey}) : super(key: key);
+  const InformDcal({Key? key}) : super(key: key);
 
   @override
   State<InformDcal> createState() => _InformDcalState();
 }
 
-class _InformDcalState extends State<InformDcal> {
+class _InformDcalState extends State<InformDcal> with RestorationMixin {
+  @override
+  String? get restorationId => "inform_dcal";
+
   bool isLoading = false;
   bool isUploading = false;
+  List pickedImages = [];
 
   final backend = BackendHandler();
 
-  final codCliField = TextEditingController();
-  final codHsiField = TextEditingController();
-  final svcValueField = TextEditingController(text: "R\$");
-  final dscValueField = TextEditingController(text: "R\$");
-  final dscAutField = TextEditingController();
+  final codCliField = RestorableTextEditingController();
+  final codHsiField = RestorableTextEditingController();
+  final svcValueField = RestorableTextEditingController(text: "R\$");
+  final dscValueField = RestorableTextEditingController(text: "R\$");
+  final dscAutField = RestorableTextEditingController();
+  final backupImages = RestorableString("");
 
   final ImagePicker picker = ImagePicker();
-  final List<Map> pickedImages = [];
+
+  @override
+  void restoreState(RestorationBucket? oldBucket, bool initialRestore) {
+    registerForRestoration(codCliField, "cod_cli_f");
+    registerForRestoration(codHsiField, "cod_hsi_f");
+    registerForRestoration(svcValueField, "svc_val_f");
+    registerForRestoration(dscValueField, "dsc_val_f");
+    registerForRestoration(dscAutField, "dsc_aut_f");
+    registerForRestoration(backupImages, "images_list");
+  }
 
   @override
   void initState() {
@@ -47,8 +59,33 @@ class _InformDcalState extends State<InformDcal> {
     svcValueField.dispose();
     dscValueField.dispose();
     dscAutField.dispose();
+    backupImages.dispose();
 
     super.dispose();
+  }
+
+  void checkLostImages(context, int id, String key) async {
+    final LostDataResponse lostData = await picker.retrieveLostData();
+    if (lostData.isEmpty == false) {
+      setState(() {
+        isUploading = true;
+      });
+      for (final file in lostData.files!) {
+        if (file.path.isNotEmpty) {
+          var upload = await backend.doUpload(id, key, file.path, false);
+          if (upload["error"] == false) {
+            pickedImages.add({
+              "token":upload["upload"]["token"],
+              "filename":upload["upload"]["filename"],
+              "path":file.path});
+          }
+        }
+      }
+      backupImages.value = jsonEncode(pickedImages);
+      setState(() {
+        isUploading = false;
+      });
+    }
   }
 
   Widget imageGrid() {
@@ -100,6 +137,7 @@ class _InformDcalState extends State<InformDcal> {
                     setState(() {
                       pickedImages.removeAt(index);
                     });
+                    backupImages.value = jsonEncode(pickedImages);
                   }
                 }
               ),
@@ -112,6 +150,14 @@ class _InformDcalState extends State<InformDcal> {
 
   @override
   Widget build(BuildContext context) {
+    final Map args = ModalRoute.of(context)?.settings.arguments as Map<Object?, Object?>;
+
+    if (backupImages.value != "") {
+      pickedImages = jsonDecode(backupImages.value);
+    }
+
+    checkLostImages(context, args["id"], args["apiKey"]);
+
     return Stack(
       children: [
         Scaffold(
@@ -152,7 +198,7 @@ class _InformDcalState extends State<InformDcal> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(0, 0, 5, 0),
                             child: TextField(
-                              controller: codCliField,
+                              controller: codCliField.value,
                               keyboardType: TextInputType.number,
                               obscureText: false,
                               textAlign: TextAlign.start,
@@ -217,7 +263,7 @@ class _InformDcalState extends State<InformDcal> {
                             ),
                           ),
                           TextField(
-                            controller: codHsiField,
+                            controller: codHsiField.value,
                             keyboardType: TextInputType.number,
                             obscureText: false,
                             textAlign: TextAlign.start,
@@ -297,7 +343,7 @@ class _InformDcalState extends State<InformDcal> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(0, 0, 2, 0),
                             child: TextField(
-                              controller: svcValueField,
+                              controller: svcValueField.value,
                               keyboardType: TextInputType.number,
                               obscureText: false,
                               textAlign: TextAlign.start,
@@ -364,7 +410,7 @@ class _InformDcalState extends State<InformDcal> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(2, 0, 0, 0),
                             child: TextField(
-                              controller: dscValueField,
+                              controller: dscValueField.value,
                               keyboardType: TextInputType.number,
                               obscureText: false,
                               textAlign: TextAlign.start,
@@ -431,7 +477,7 @@ class _InformDcalState extends State<InformDcal> {
                   ),
                 ),
                 TextField(
-                  controller: dscAutField,
+                  controller: dscAutField.value,
                   obscureText: false,
                   textAlign: TextAlign.start,
                   maxLines: 1,
@@ -510,12 +556,13 @@ class _InformDcalState extends State<InformDcal> {
                                 isUploading = true;
                               });
 
-                              final upload = await backend.doUpload(widget.id, widget.apiKey, image.path, false);
+                              final upload = await backend.doUpload(args["id"], args["apiKey"], image.path, false);
                               if (upload["error"] == false) {
                                 pickedImages.add({
                                   "token":upload["upload"]["token"],
                                   "filename":upload["upload"]["filename"],
                                   "path":image.path});
+                                backupImages.value = jsonEncode(pickedImages);
                               }
 
                               setState(() {
@@ -559,7 +606,7 @@ class _InformDcalState extends State<InformDcal> {
                               });
                               for(final image in images) {
                                 if (image.path.isNotEmpty) {
-                                  final upload = await backend.doUpload(widget.id, widget.apiKey, image.path, false);
+                                  final upload = await backend.doUpload(args["id"], args["apiKey"], image.path, false);
                                   if (upload["error"] == false) {
                                     pickedImages.add({
                                       "token":upload["upload"]["token"],
@@ -568,6 +615,9 @@ class _InformDcalState extends State<InformDcal> {
                                   }
                                 }
                               }
+
+                              backupImages.value = jsonEncode(pickedImages);
+
                               setState(() {
                                 isUploading = false;
                               });
@@ -611,23 +661,23 @@ class _InformDcalState extends State<InformDcal> {
 
                 bool error = false;
                 String errorMsg = "";
-                if(codCliField.text.isEmpty) {
+                if(codCliField.value.text.isEmpty) {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo \"código cliente\" em branco.";
                 }
-                if(codHsiField.text.isEmpty) {
+                if(codHsiField.value.text.isEmpty) {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo \"n° plano\" em branco.";
                 }
-                if(svcValueField.text.isEmpty || svcValueField.text == "R\$") {
+                if(svcValueField.value.text.isEmpty || svcValueField.value.text == "R\$") {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo \"valor serviços\" em branco.";
                 }
-                if(dscValueField.text.isEmpty || dscValueField.text == "R\$") {
+                if(dscValueField.value.text.isEmpty || dscValueField.value.text == "R\$") {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo \"valor desconto\" em branco.";
                 }
-                if(dscAutField.text.isEmpty) {
+                if(dscAutField.value.text.isEmpty) {
                   error==false?error=true:null;
                   errorMsg += "\n- Campo \"autorizador desconto\" em branco.";
                 }
@@ -654,8 +704,8 @@ class _InformDcalState extends State<InformDcal> {
                     }
                   );
                 } else {
-                  Map dcalInform = await backend.newDcalInform(widget.id, widget.apiKey, codCliField.text,
-                      codHsiField.text, svcValueField.text, dscValueField.text, dscAutField.text, pickedImages);
+                  Map dcalInform = await backend.newDcalInform(args["id"], args["apiKey"], codCliField.value.text,
+                      codHsiField.value.text, svcValueField.value.text, dscValueField.value.text, dscAutField.value.text, pickedImages);
 
                   if (context.mounted) {
                     if (dcalInform["error"] == false) {
