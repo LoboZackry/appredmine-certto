@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:appredmine_certto/handlers/backend.dart';
-import 'package:appredmine_certto/views/home_screen.dart';
 import 'package:appredmine_certto/views/devolution/new_dvl_item.dart';
 
 class DevolutionScreen extends StatefulWidget {
@@ -229,11 +228,7 @@ class _DevolutionScreenState extends State<DevolutionScreen> with RestorationMix
                                 TextButton(
                                   child: const Text("OK"),
                                   onPressed: () {
-                                    Navigator.of(context).pushReplacement(
-                                      MaterialPageRoute<void>(
-                                        builder: (BuildContext context) => const HomeScreen(),
-                                      ),
-                                    );
+                                    Navigator.popUntil(context, (Route<dynamic> predicate) => predicate.isFirst);
                                   },
                                 )
                               ]

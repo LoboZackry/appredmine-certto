@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:appredmine_certto/handlers/backend.dart';
-import 'package:appredmine_certto/views/home_screen.dart';
 
 class InformDcal extends StatefulWidget {
   const InformDcal({Key? key}) : super(key: key);
@@ -719,11 +718,7 @@ class _InformDcalState extends State<InformDcal> with RestorationMixin {
                               TextButton(
                                 child: const Text("OK"),
                                 onPressed: () {
-                                  Navigator.of(context).pushReplacement(
-                                    MaterialPageRoute<void>(
-                                      builder: (BuildContext context) => const HomeScreen(),
-                                    ),
-                                  );
+                                  Navigator.popUntil(context, (Route<dynamic> predicate) => predicate.isFirst);
                                 },
                               )
                             ]
