@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
   Widget issuesList(context, int uID, String apiKey, author, List allowedIds) {
     final List checkedIds = [];
     for (final id in allowedIds) {
-      if([6,32].contains(id)) {
+      if(['6','32'].contains(id)) {
         checkedIds.add(id);
       }
     }
@@ -48,7 +48,7 @@ class HomeScreen extends StatelessWidget {
     } else {
       final List<Widget> widgets = [];
       for (final id in checkedIds) {
-        if (id == 32) {
+        if (id == '32') {
           widgets.add(
               InkWell(
                 onTap: () {
@@ -103,7 +103,7 @@ class HomeScreen extends StatelessWidget {
               )
           );
         }
-        if (id == 6) {
+        if (id == '6') {
           widgets.add(
             InkWell(
               onTap: () {

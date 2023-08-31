@@ -110,7 +110,7 @@ class UserConfig extends StatelessWidget {
                 onTap: () async {
                   const url = 'https://brain.certto.com.br/my/account';
                   if (await canLaunchUrl(Uri.parse(url))) {
-                  await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
                   }
                 },
                 child: const Row(
