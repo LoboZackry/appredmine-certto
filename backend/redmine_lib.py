@@ -229,11 +229,12 @@ class Redmine():
                 if 'custom_fields' in get_group['group'].keys():
                     for field in get_group['group']['custom_fields']:
                         if field['id'] == 116:
-                            split = field['value'].split(",")
-                            if split != ['']:
-                                for value in split:
-                                    if value not in result:
-                                        result.append(value)
+                            if field['value'] is not None:
+                                split = field['value'].split(",")
+                                if split != ['']:
+                                    for value in split:
+                                        if value not in result:
+                                            result.append(value)
 
         return result
     
