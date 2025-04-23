@@ -100,15 +100,28 @@ class Redmine():
         
         return result
     
-    def doNewInform(self, key, payload):
+    def doNewInform(self, key, user, payload):
         result = {}
         request = {}
         
         request['issue'] = {}
-        request["issue"]["project_id"] = 20 # CAL - Call Center
-        request["issue"]["tracker_id"] = 6 # Solicitação
-        request["issue"]["priority_id"] = 4 # ID 1 = 5 - Planejado (ID 4 = 4 - Baixo)
-        request["issue"]["assigned_to_id"] = 60 # 60 (OPE - CAL - Despacho)
+        
+        if user['user']['firstname'].startswith("CSC"):
+            request["issue"]["project_id"] = 18 # ATD - Cascavel
+            request["issue"]["tracker_id"] = 6 # Solicitação
+            request["issue"]["priority_id"] = 4 # ID 1 = 5 - Planejado (ID 4 = 4 - Baixo)
+            request["issue"]["assigned_to_id"] = 62 # 62 (OPE - ATD - Cascavel)
+        elif user['user']['firstname'].startswith("TOO"):
+            request["issue"]["project_id"] = 19 # ATD - Toledo
+            request["issue"]["tracker_id"] = 6 # Solicitação
+            request["issue"]["priority_id"] = 4 # ID 1 = 5 - Planejado (ID 4 = 4 - Baixo)
+            request["issue"]["assigned_to_id"] = 63 # 63 (OPE - ATD - Toledo)
+        else:
+            request["issue"]["project_id"] = 18 # ATD - Cascavel
+            request["issue"]["tracker_id"] = 6 # Solicitação
+            request["issue"]["priority_id"] = 4 # ID 1 = 5 - Planejado (ID 4 = 4 - Baixo)
+            request["issue"]["assigned_to_id"] = 62 # 60 (OPE - ATD - Cascavel)
+        
         request["issue"]["uploads"] = []
         request["issue"]["subject"] = "Negociação em campo - Cliente %s" % (payload['cod_cli'])
         request["issue"]["description"] = "<p>Informo que foi realizada a seguinte negocia&ccedil;&atilde;o em campo:</p>"

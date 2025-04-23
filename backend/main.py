@@ -84,7 +84,8 @@ def main_func():
                                             response['error'] = True
                                             response['message'] = devolution['status_msg']
                                     case "newifm":
-                                        inform = brain.doNewInform(key,req_json['payload'])
+                                        user = brain.getUser(uid)
+                                        inform = brain.doNewInform(key,user,req_json['payload'])
                                         if inform['error'] is False:
                                             response['code'] = 200
                                             response['error'] = False
